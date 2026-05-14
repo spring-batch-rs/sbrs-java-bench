@@ -41,7 +41,6 @@ application-local.yml
 # Benchmark data (generated, can be large)
 data/
 *.csv
-*.xml
 
 # macOS
 .DS_Store
