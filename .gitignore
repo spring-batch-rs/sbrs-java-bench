@@ -1,0 +1,47 @@
+# Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# IDE — IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# IDE — VS Code / Zed
+.vscode/
+*.code-workspace
+
+# IDE — Eclipse
+.classpath
+.project
+.settings/
+.factorypath
+
+# Build output
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs
+*.log
+logs/
+
+# Spring Boot
+spring-pid
+
+# Environment / secrets
+.env
+application-local.properties
+application-local.yml
+
+# Benchmark data (generated, can be large)
+data/
+*.csv
+*.xml
+
+# macOS
+.DS_Store
