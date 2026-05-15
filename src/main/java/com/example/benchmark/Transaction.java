@@ -4,18 +4,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.xml.bind.annotation.XmlAccessType;
-import jakarta.xml.bind.annotation.XmlAccessorType;
-import jakarta.xml.bind.annotation.XmlRootElement;
 
 /**
- * Financial transaction entity used for both database persistence (JPA)
- * and XML serialisation (JAXB).
+ * Financial transaction entity used for database persistence (JPA).
+ * XML serialisation is handled via StAX in TransactionXmlWriter/TransactionXmlReader.
  */
 @Entity
 @Table(name = "transactions")
-@XmlRootElement(name = "transaction")
-@XmlAccessorType(XmlAccessType.FIELD)
 public class Transaction {
 
     @Id
