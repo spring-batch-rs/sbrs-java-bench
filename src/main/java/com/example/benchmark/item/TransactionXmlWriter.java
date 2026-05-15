@@ -27,6 +27,7 @@ public class TransactionXmlWriter implements ItemStreamWriter<Transaction> {
     private final String path;
     private XMLStreamWriter xmlWriter;
     private BufferedOutputStream out;
+    private boolean closed = false;
 
     public TransactionXmlWriter(String path) {
         this.path = path;
@@ -100,6 +101,8 @@ public class TransactionXmlWriter implements ItemStreamWriter<Transaction> {
 
     @Override
     public void close() throws ItemStreamException {
+        if (closed) return;
+        closed = true;
         if (xmlWriter != null) {
             try {
                 xmlWriter.writeEndElement(); // </transactions>
