@@ -19,19 +19,15 @@ import org.springframework.context.annotation.Bean;
 /**
  * Entry point for the Spring Batch Java benchmark.
  *
- * <p>Runs a two-step ETL pipeline:
+ * <p>Runs a three-step ETL pipeline:
  * <ol>
  *   <li>Step 1 — reads 10M transactions from CSV, converts currencies to EUR,
  *       normalises statuses, and bulk-inserts into PostgreSQL (chunk = 1 000)</li>
- *   <li>Step 2 — reads PostgreSQL and exports to XML (chunk = 1 000)</li>
+ *   <li>Step 2 — reads PostgreSQL and exports to XML using StAX (chunk = 1 000)</li>
+ *   <li>Step 3 — reads XML and bulk-inserts into transactions_import (chunk = 1 000)</li>
  * </ol>
  *
- * <p>Run with:
- * <pre>
- * mvn spring-boot:run \
- *   -Dspring-boot.run.jvmArguments="-Xms512m -Xmx4g -XX:+UseG1GC -Xlog:gc*:gc.log" \
- *   -Dspring-boot.run.arguments="--benchmark.csv.path=/tmp/transactions.csv"
- * </pre>
+ * <p>Total wall-clock time includes CSV generation.
  */
 @SpringBootApplication
 public class BenchmarkApplication {
@@ -48,23 +44,26 @@ public class BenchmarkApplication {
     }
 
     /**
-     * Defines the benchmark job: Step 1 (CSV → PostgreSQL) then Step 2 (PostgreSQL → XML).
+     * Defines the benchmark job: Step 1, Step 2, then Step 3.
      */
     @Bean
     public Job benchmarkJob(
         JobRepository jobRepository,
         Step step1,
-        Step step2
+        Step step2,
+        Step step3
     ) {
         return new JobBuilder("transactionBenchmarkJob", jobRepository)
             .start(step1)
             .next(step2)
+            .next(step3)
             .build();
     }
 
     /**
      * Runs the benchmark on application startup:
-     * generates CSV, executes both steps, and prints a metrics summary.
+     * truncates tables, generates CSV (included in total time),
+     * executes all three steps, and prints a metrics summary.
      */
     @Bean
     public ApplicationRunner benchmarkRunner(
@@ -88,7 +87,11 @@ public class BenchmarkApplication {
             try (var conn = dataSource.getConnection();
                  var stmt = conn.createStatement()) {
                 stmt.execute("TRUNCATE TABLE transactions");
+                stmt.execute("TRUNCATE TABLE transactions_import");
             }
+
+            // Total wall time includes CSV generation
+            long totalStart = System.currentTimeMillis();
 
             // Generate CSV data
             System.err.printf(
@@ -103,8 +106,7 @@ public class BenchmarkApplication {
                 (System.currentTimeMillis() - genStart) / 1000.0
             );
 
-            // Run batch job and measure wall time
-            long jobStart = System.currentTimeMillis();
+            // Run batch job
             JobExecution execution = jobLauncher.run(
                 benchmarkJob,
                 new JobParametersBuilder()
@@ -112,7 +114,7 @@ public class BenchmarkApplication {
                     .toJobParameters()
             );
 
-            long totalMs = System.currentTimeMillis() - jobStart;
+            long totalMs = System.currentTimeMillis() - totalStart;
 
             // Print per-step metrics
             for (StepExecution step : execution.getStepExecutions()) {
@@ -131,13 +133,6 @@ public class BenchmarkApplication {
                     stepMs / 1000.0,
                     throughput
                 );
-                if (step.getSkipCount() > 0) {
-                    System.err.printf(
-                        "[%s] WARNING: %d records skipped — throughput may be understated%n",
-                        step.getStepName(),
-                        step.getSkipCount()
-                    );
-                }
             }
 
             System.err.println();
@@ -155,7 +150,7 @@ public class BenchmarkApplication {
                 execution.getStatus()
             );
             System.err.printf(
-                "║  Total pipeline duration : %.1fs%n",
+                "║  Total wall-clock time   : %.1fs  (incl. CSV generation)%n",
                 totalMs / 1000.0
             );
             System.err.printf(
@@ -168,12 +163,6 @@ public class BenchmarkApplication {
             );
             System.err.println(
                 "╚══════════════════════════════════════════════════════════╝"
-            );
-            System.err.println();
-            System.err.println("Hint: measure peak heap with:");
-            System.err.println(
-                "  mvn spring-boot:run -Dspring-boot.run.jvmArguments=\"" +
-                    "-Xms512m -Xmx4g -XX:+UseG1GC -Xlog:gc*:gc.log\""
             );
         };
     }
