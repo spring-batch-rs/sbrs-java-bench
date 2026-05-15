@@ -3,6 +3,7 @@ package com.example.benchmark;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Generates a CSV file with random financial transactions.
@@ -47,7 +48,7 @@ public class DataGenerator {
                 long from  = r1 % 1_000_000;
                 long to    = r2 % 1_000_000;
 
-                writer.write(String.format(
+                writer.write(String.format(Locale.ROOT,
                     "TXN-%010d,%.2f,%s,2024-%02d-%02dT%02d:%02d:%02dZ,ACC-%08d,ACC-%08d,%s",
                     i + 1, amount, currency,
                     month, day, hour, min, sec,
