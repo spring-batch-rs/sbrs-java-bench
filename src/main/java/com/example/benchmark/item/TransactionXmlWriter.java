@@ -36,10 +36,15 @@ public class TransactionXmlWriter implements ItemStreamWriter<Transaction> {
     public void open(ExecutionContext executionContext) throws ItemStreamException {
         try {
             out = new BufferedOutputStream(new FileOutputStream(path), 256 * 1024);
-            xmlWriter = XMLOutputFactory.newFactory().createXMLStreamWriter(out, "UTF-8");
-            xmlWriter.writeStartDocument("UTF-8", "1.0");
-            xmlWriter.writeStartElement("transactions");
-        } catch (XMLStreamException | IOException e) {
+            try {
+                xmlWriter = XMLOutputFactory.newFactory().createXMLStreamWriter(out, "UTF-8");
+                xmlWriter.writeStartDocument("UTF-8", "1.0");
+                xmlWriter.writeStartElement("transactions");
+            } catch (XMLStreamException e) {
+                try { out.close(); } catch (IOException ignored) { /* best-effort */ }
+                throw new ItemStreamException("Cannot open XML output: " + path, e);
+            }
+        } catch (IOException e) {
             throw new ItemStreamException("Cannot open XML output: " + path, e);
         }
     }
