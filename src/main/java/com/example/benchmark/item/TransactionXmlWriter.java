@@ -50,7 +50,10 @@ public class TransactionXmlWriter implements ItemStreamWriter<Transaction> {
     }
 
     @Override
-    public void write(Chunk<? extends Transaction> items) throws XMLStreamException {
+    public void write(Chunk<? extends Transaction> items) throws ItemStreamException, XMLStreamException {
+        if (xmlWriter == null) {
+            throw new ItemStreamException("Writer not opened — call open() before write()");
+        }
         for (Transaction t : items) {
             xmlWriter.writeStartElement("transaction");
 
