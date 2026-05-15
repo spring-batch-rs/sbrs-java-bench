@@ -1,19 +1,16 @@
 package com.example.benchmark.config;
 
 import com.example.benchmark.Transaction;
+import com.example.benchmark.item.TransactionXmlWriter;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.database.JdbcPagingItemReader;
 import org.springframework.batch.infrastructure.item.database.Order;
 import org.springframework.batch.infrastructure.item.database.builder.JdbcPagingItemReaderBuilder;
-import org.springframework.batch.infrastructure.item.xml.StaxEventItemWriter;
-import org.springframework.batch.infrastructure.item.xml.builder.StaxEventItemWriterBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
@@ -21,9 +18,7 @@ import java.util.Map;
 
 /**
  * Step 2 configuration: reads all transactions from PostgreSQL (paginated)
- * and writes to an XML file using JAXB marshalling (chunk size = 1 000).
- *
- * <p>This is the Java equivalent of the Rust {@code run_step2} function.
+ * and writes to an XML file using StAX streaming (chunk size = 1 000).
  */
 @Configuration
 public class XmlExportConfig {
@@ -33,8 +28,6 @@ public class XmlExportConfig {
 
     /**
      * Reads transactions from PostgreSQL using keyset-based pagination.
-     *
-     * <p>Page size 1 000 — same as the Rust benchmark's {@code with_page_size(1_000)}.
      */
     @Bean
     public JdbcPagingItemReader<Transaction> postgresReader(DataSource dataSource) throws Exception {
@@ -62,44 +55,26 @@ public class XmlExportConfig {
     }
 
     /**
-     * Configures the JAXB marshaller for {@link Transaction} XML serialisation.
+     * Writes transactions to XML using StAX — no JAXB, no reflection.
      */
     @Bean
-    public Jaxb2Marshaller jaxb2Marshaller() throws Exception {
-        Jaxb2Marshaller marshaller = new Jaxb2Marshaller();
-        marshaller.setClassesToBeBound(Transaction.class);
-        marshaller.afterPropertiesSet();
-        return marshaller;
+    public TransactionXmlWriter xmlWriter() {
+        return new TransactionXmlWriter(xmlPath);
     }
 
     /**
-     * Writes transactions to an XML file with {@code <transactions>} root
-     * and {@code <transaction>} item tags.
-     */
-    @Bean
-    public StaxEventItemWriter<Transaction> xmlWriter(Jaxb2Marshaller marshaller) {
-        return new StaxEventItemWriterBuilder<Transaction>()
-            .name("transactionXmlWriter")
-            .resource(new FileSystemResource(xmlPath))
-            .marshaller(marshaller)
-            .rootTagName("transactions")
-            .build();
-    }
-
-    /**
-     * Step 2: PostgreSQL → XML.
-     *
-     * <p>Chunk size 1 000 — same as the Rust benchmark for fair comparison.
+     * Step 2: PostgreSQL → XML (chunk = 1 000).
      */
     @Bean
     public Step step2(JobRepository jobRepository,
                       PlatformTransactionManager transactionManager,
                       JdbcPagingItemReader<Transaction> postgresReader,
-                      StaxEventItemWriter<Transaction> xmlWriter) {
+                      TransactionXmlWriter xmlWriter) {
         return new StepBuilder("postgrestoXmlStep", jobRepository)
             .<Transaction, Transaction>chunk(1_000, transactionManager)
             .reader(postgresReader)
             .writer(xmlWriter)
+            .stream(xmlWriter)
             .build();
     }
 }
